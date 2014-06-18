@@ -4,8 +4,20 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import com.sematext.solr.redis.command.Command;
-import com.sematext.solr.redis.command.Smembers;
-import com.sematext.solr.redis.command.Zrevrangebyscore;
+import com.sematext.solr.redis.command.GET;
+import com.sematext.solr.redis.command.HGET;
+import com.sematext.solr.redis.command.HKEYS;
+import com.sematext.solr.redis.command.HMGET;
+import com.sematext.solr.redis.command.HVALS;
+import com.sematext.solr.redis.command.LINDEX;
+import com.sematext.solr.redis.command.LRANGE;
+import com.sematext.solr.redis.command.MGET;
+import com.sematext.solr.redis.command.SMEMBERS;
+import com.sematext.solr.redis.command.SORT;
+import com.sematext.solr.redis.command.SRANDMEMBER;
+import com.sematext.solr.redis.command.SUNION;
+import com.sematext.solr.redis.command.ZRANGEBYSCORE;
+import com.sematext.solr.redis.command.ZREVRANGEBYSCORE;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -35,17 +47,34 @@ public class RedisQParser extends QParser {
   private static final Map<String, Command> commands;
   static {
     commands = new HashMap<>();
-    commands.put("smembers", new Smembers());
-    commands.put("zrevrangebyscore", new Zrevrangebyscore());
+    commands.put("SMEMBERS", new SMEMBERS());
+    commands.put("SRANDMEMBER", new SRANDMEMBER());
+    commands.put("SUNION", new SUNION());
+
+    commands.put("ZRANGEBYSCORE", new ZRANGEBYSCORE());
+    commands.put("ZREVRANGEBYSCORE", new ZREVRANGEBYSCORE());
+
+    commands.put("HGET", new HGET());
+    commands.put("HKEYS", new HKEYS());
+    commands.put("HMGET", new HMGET());
+    commands.put("HVALS", new HVALS());
+
+    commands.put("LRANGE", new LRANGE());
+    commands.put("LINDEX", new LINDEX());
+
+    commands.put("GET", new GET());
+    commands.put("MGET", new MGET());
+
+    commands.put("SORT", new SORT());
   }
 
   private final JedisPool jedisPool;
   private Map<String, Float> results = null;
   private BooleanClause.Occur operator = BooleanClause.Occur.SHOULD;
-  private String redisCommand;
-  private String redisKey;
-  private boolean useQueryTimeAnalyzer;
-  private int maxJedisRetries;
+  private final String redisCommand;
+  private final String redisKey;
+  private final boolean useQueryTimeAnalyzer;
+  private final int maxJedisRetries;
 
   RedisQParser(String qstr, SolrParams localParams, SolrParams params, SolrQueryRequest req, JedisPool jedisPool) {
     this(qstr, localParams, params, req, jedisPool, 0);
@@ -56,7 +85,7 @@ public class RedisQParser extends QParser {
     super(qstr, localParams, params, req);
     this.jedisPool = jedisPool;
 
-    redisCommand = localParams.get("command");
+    redisCommand = localParams.get("command") == null ? null : localParams.get("command").toUpperCase();
     redisKey = localParams.get("key");
     String operatorString = localParams.get("operator");
     String useAnalyzerParam = localParams.get("useAnalyzer");
@@ -87,8 +116,8 @@ public class RedisQParser extends QParser {
 
   @Override
   public Query parse() throws SyntaxError {
-    String fieldName = localParams.get(QueryParsing.V);
-    BooleanQuery booleanQuery = new BooleanQuery(true);
+    final String fieldName = localParams.get(QueryParsing.V);
+    final BooleanQuery booleanQuery = new BooleanQuery(true);
     int booleanClausesTotal = 0;
 
     fetchDataFromRedis(redisCommand, redisKey, maxJedisRetries);
@@ -98,9 +127,13 @@ public class RedisQParser extends QParser {
 
       for (Map.Entry<String, Float> entry : results.entrySet()) {
         try {
-          TokenStream tokenStream;
-          String termString = entry.getKey();
-          Float score = entry.getValue();
+          final TokenStream tokenStream;
+          final String termString = entry.getKey();
+          if (termString == null) {
+            continue;
+          }
+
+          final Float score = entry.getValue();
 
           if (useQueryTimeAnalyzer) {
             tokenStream = req.getSchema().getQueryAnalyzer().tokenStream(fieldName, termString);
@@ -116,11 +149,12 @@ public class RedisQParser extends QParser {
             int counter = 0;
             while (tokenStream.incrementToken()) {
 
-              log.trace("Taking {} token from query string from {} for field: {}", ++counter, termString, fieldName);
+              log.trace("Taking {} token {} with score {} from query string from {} for field: {}", ++counter,
+                  new String(charAttribute.buffer()), score, termString, fieldName);
 
               term = new BytesRef(charAttribute);
               TermQuery termQuery = new TermQuery(new Term(fieldName, term));
-              if (score != Float.NaN) {
+              if (!score.isNaN()) {
                 termQuery.setBoost(score);
               }
               booleanQuery.add(termQuery, this.operator);
