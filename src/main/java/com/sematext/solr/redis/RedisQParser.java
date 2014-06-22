@@ -73,6 +73,7 @@ public class RedisQParser extends QParser {
   private BooleanClause.Occur operator = BooleanClause.Occur.SHOULD;
   private final String redisCommand;
   private final String redisKey;
+  private final Float boost;
   private final boolean useQueryTimeAnalyzer;
   private final int maxJedisRetries;
 
@@ -88,7 +89,6 @@ public class RedisQParser extends QParser {
     redisCommand = localParams.get("command") == null ? null : localParams.get("command").toUpperCase();
     redisKey = localParams.get("key");
     String operatorString = localParams.get("operator");
-    String useAnalyzerParam = localParams.get("useAnalyzer");
 
     if (redisCommand == null) {
       log.error("No command argument passed to RedisQParser.");
@@ -109,7 +109,8 @@ public class RedisQParser extends QParser {
       operator = BooleanClause.Occur.SHOULD;
     }
 
-    useQueryTimeAnalyzer = useAnalyzerParam == null || Boolean.parseBoolean(useAnalyzerParam);
+    boost = localParams.getFloat("boost");
+    useQueryTimeAnalyzer = localParams.getBool("useAnalyzer", true);
 
     this.maxJedisRetries = maxJedisRetries;
   }
@@ -175,7 +176,12 @@ public class RedisQParser extends QParser {
       }
     }
 
-    log.debug("Prepared a query for field {} with {} boolean clauses", fieldName, booleanClausesTotal);
+    if (boost != null) {
+      booleanQuery.setBoost(boost);
+    }
+
+    log.debug("Prepared a query for field {} with {} boolean clauses and boost {}",
+        fieldName, booleanClausesTotal, boost);
 
     return booleanQuery;
   }

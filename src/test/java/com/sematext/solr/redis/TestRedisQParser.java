@@ -74,6 +74,16 @@ public class TestRedisQParser {
   }
 
   @Test
+  public void shouldSetBoost() throws SyntaxError {
+    when(localParamsMock.get("command")).thenReturn("smembers");
+    when(localParamsMock.getFloat("boost")).thenReturn(100.0F);
+    when(localParamsMock.get("key")).thenReturn("simpleKey");
+    redisQParser = new RedisQParser("string_field", localParamsMock, paramsMock, requestMock, jedisPoolMock);
+    Query query = redisQParser.parse();
+    Assert.assertEquals(100.0F, query.getBoost(), 0.001F);
+  }
+
+  @Test
   public void shouldQueryRedisOnSmembersCommand() throws SyntaxError {
     when(localParamsMock.get("command")).thenReturn("smembers");
     when(localParamsMock.get("key")).thenReturn("simpleKey");
@@ -971,7 +981,7 @@ public class TestRedisQParser {
   public void shouldTurnAnalysisOff() throws SyntaxError {
     when(localParamsMock.get("command")).thenReturn("smembers");
     when(localParamsMock.get("key")).thenReturn("simpleKey");
-    when(localParamsMock.get("useAnalyzer")).thenReturn("false");
+    when(localParamsMock.getBool("useAnalyzer", true)).thenReturn(false);
     when(localParamsMock.get(QueryParsing.V)).thenReturn("string_field");
     when(jedisMock.smembers(any(String.class))).thenReturn(new HashSet<>(Arrays.asList("123 124", "321")));
     redisQParser = new RedisQParser("string_field", localParamsMock, paramsMock, requestMock, jedisPoolMock);
@@ -986,7 +996,7 @@ public class TestRedisQParser {
   public void shouldTurnAnalysisOn() throws SyntaxError {
     when(localParamsMock.get("command")).thenReturn("smembers");
     when(localParamsMock.get("key")).thenReturn("simpleKey");
-    when(localParamsMock.get("useAnalyzer")).thenReturn("true");
+    when(localParamsMock.getBool("useAnalyzer", true)).thenReturn(true);
     when(localParamsMock.get(QueryParsing.V)).thenReturn("string_field");
     when(requestMock.getSchema()).thenReturn(schema);
     when(schema.getQueryAnalyzer()).thenReturn(new WhitespaceAnalyzer(Version.LUCENE_48));

@@ -36,6 +36,7 @@ Configure the query parser plugin in `solrconfig.xml`. Add the following to the 
  * **key** - Key used to fetch data from Redis (required)
  * **operator** - Operator which connects terms taken from Redis. Allowed values are AND/OR (optional - default is OR)
  * **useAnalyzer** - Turns on and off query time analyzer true/false (optional - default is true)
+ * **boost** - Boost factor for the Redis query
 
 SRANDMEMBER specific parameters:
  * **count** - Number of random keys to retrieve (default `1`)
